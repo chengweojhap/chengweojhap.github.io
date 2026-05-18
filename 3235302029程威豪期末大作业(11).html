@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福州三坊七巷：千年坊巷的时空之旅</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f8f5f0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background-color: #e0e0e0;
+        }
+
+        /* 复古地图滤镜 - 核心修复 */
+        .historical-map .leaflet-tile-pane {
+            filter: sepia(85%) contrast(90%) brightness(110%) saturate(30%);
+            -webkit-filter: sepia(85%) contrast(90%) brightness(110%) saturate(30%);
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(248, 245, 240, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f0e6d6;
+            border-top: 5px solid #d4af37;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-text {
+            font-size: 18px;
+            color: #8b4513;
+            font-weight: 500;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .story-sidebar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 380px;
+            max-height: calc(100vh - 40px);
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            padding: 24px;
+            z-index: 1000;
+            overflow-y: auto;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .story-header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #d4af37;
+        }
+
+        .story-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: #8b4513;
+            margin-bottom: 8px;
+        }
+
+        .story-subtitle {
+            font-size: 14px;
+            color: #666;
+            font-weight: 300;
+        }
+
+        .story-content {
+            margin-bottom: 24px;
+            line-height: 1.8;
+            color: #333;
+        }
+
+        .story-content h3 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 20px;
+            font-weight: 600;
+            color: #8b4513;
+            margin-bottom: 12px;
+            border-left: 4px solid #d4af37;
+            padding-left: 12px;
+        }
+
+        .story-content p {
+            margin-bottom: 12px;
+            font-size: 15px;
+        }
+
+        .story-image {
+            width: 100%;
+            border-radius: 8px;
+            margin: 16px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .story-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 24px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background-color: #8b4513;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #a0522d;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-secondary {
+            background-color: #f0e6d6;
+            color: #8b4513;
+        }
+
+        .btn-secondary:hover {
+            background-color: #e6d5b8;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background-color: #f0e6d6;
+            border-radius: 3px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: #d4af37;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .layer-switcher {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            padding: 16px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .layer-switcher h4 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 16px;
+            font-weight: 600;
+            color: #8b4513;
+            margin-bottom: 12px;
+        }
+
+        .layer-option {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+
+        .layer-option:hover {
+            background-color: #f0e6d6;
+        }
+
+        .layer-option input {
+            margin-right: 8px;
+        }
+
+        .layer-option label {
+            font-size: 14px;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .map-legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            padding: 16px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .map-legend h4 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 16px;
+            font-weight: 600;
+            color: #8b4513;
+            margin-bottom: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .legend-text {
+            font-size: 14px;
+            color: #333;
+        }
+
+        .popup-content {
+            max-width: 320px;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+
+        .popup-content h3 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 18px;
+            font-weight: 600;
+            color: #8b4513;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #d4af37;
+            padding-bottom: 4px;
+        }
+
+        .popup-content p {
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+
+        .popup-image {
+            width: 100%;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            z-index: 10000;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .error-message h3 {
+            color: #d9534f;
+            margin-bottom: 10px;
+        }
+
+        .error-message p {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .story-sidebar {
+                width: calc(100% - 40px);
+                top: auto;
+                bottom: 20px;
+                max-height: 40vh;
+            }
+
+            .layer-switcher {
+                top: 20px;
+                left: 20px;
+                right: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在加载地图...</div>
+    </div>
+
+    <div class="story-sidebar">
+        <div class="story-header">
+            <h1 class="story-title">福州三坊七巷</h1>
+            <p class="story-subtitle">千年坊巷的时空之旅</p>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+        </div>
+
+        <div class="story-content" id="storyContent">
+            <h3>第一章：俯瞰榕城，坊巷初现</h3>
+            <p>福州，这座有着2200多年历史的文化名城，自古便有"海滨邹鲁"的美誉。在城市的中心地带，保存着一片中国现存最完整的明清古建筑街区——三坊七巷。</p>
+            <p>请跟随地图的视角，从高空俯瞰这片神奇的土地。你将看到一片青瓦白墙、错落有致的古建筑群，它就像一颗璀璨的明珠，镶嵌在现代都市的怀抱中。</p>
+            <img src="https://images.unsplash.com/photo-1548013146-72479768bada?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="福州三坊七巷全景" class="story-image">
+            <p>点击"开始探索"按钮，让我们一起走进这片千年坊巷，开启一段穿越时空的旅程。</p>
+        </div>
+
+        <div class="story-controls">
+            <button class="btn btn-secondary" id="prevBtn" disabled>上一步</button>
+            <button class="btn btn-primary" id="nextBtn">开始探索</button>
+        </div>
+    </div>
+
+    <div class="layer-switcher">
+        <h4>时空切换</h4>
+        <div class="layer-option">
+            <input type="radio" id="modernLayer" name="layer" checked>
+            <label for="modernLayer">现代地图</label>
+        </div>
+        <div class="layer-option">
+            <input type="radio" id="historicalLayer" name="layer">
+            <label for="historicalLayer">明清古地图</label>
+        </div>
+    </div>
+
+    <div class="map-legend">
+        <h4>地图图例</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #8b4513;"></div>
+            <div class="legend-text">名人故居</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #d49237;"></div>
+            <div class="legend-text">历史遗迹</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #2e8b57;"></div>
+            <div class="legend-text">传统园林</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #e1bc41;"></div>
+            <div class="legend-text">坊巷边界</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        // 修复Leaflet图标路径问题
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+            iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+            iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        });
+
+        // 地图瓦片源（国内最稳定的高德地图）
+        const tileSource = {
+            name: "高德地图",
+            url: "https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}",
+            subdomains: ["1", "2", "3", "4"],
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://amap.com">高德地图</a>'
+        };
+
+        // 初始化地图
+        let map;
+        let tileLayer;
+        let mapLoaded = false;
+        let isHistoricalMode = false;
+
+        // 三坊七巷精确边界坐标（已校准）
+        const sanfangqixiangBoundary = [
+            [26.0875, 119.2940],
+            [26.0872, 119.2985],
+            [26.0855, 119.2990],
+            [26.0840, 119.2995],
+            [26.0825, 119.2990],
+            [26.0810, 119.2985],
+            [26.0795, 119.2975],
+            [26.0785, 119.2965],
+            [26.0780, 119.2950],
+            [26.0790, 119.2935],
+            [26.0810, 119.2930],
+            [26.0830, 119.2935],
+            [26.0850, 119.2935],
+            [26.0865, 119.2938],
+            [26.0875, 119.2940]
+        ];
+
+        // 初始化地图
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: true,
+                preferCanvas: true,
+                maxBounds: [[26.07, 119.28], [26.095, 119.31]],
+                maxBoundsViscosity: 1.0
+            }).setView([26.0865, 119.2965], 10);
+
+            tileLayer = L.tileLayer(tileSource.url, {
+                subdomains: tileSource.subdomains,
+                maxZoom: tileSource.maxZoom,
+                attribution: tileSource.attribution
+            }).addTo(map);
+
+            // 添加三坊七巷边界线
+            L.polygon(sanfangqixiangBoundary, {
+                color: '#e1bc41',
+                weight: 3,
+                fillColor: '#e1bc41',
+                fillOpacity: 0.1
+            }).addTo(map).bindPopup("三坊七巷历史文化街区<br>面积：约38公顷");
+
+            // 添加缩放控件
+            L.control.zoom({
+                position: 'bottomright'
+            }).addTo(map);
+
+            // 隐藏加载界面
+            setTimeout(() => {
+                const overlay = document.getElementById('loadingOverlay');
+                overlay.style.opacity = 0;
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    mapLoaded = true;
+                    // 初始化故事
+                    updateStory();
+                }, 500);
+            }, 800);
+
+            // 图层切换事件
+            document.getElementById('modernLayer').addEventListener('change', function() {
+                if (this.checked && mapLoaded) {
+                    switchToModernMap();
+                }
+            });
+
+            document.getElementById('historicalLayer').addEventListener('change', function() {
+                if (this.checked && mapLoaded) {
+                    switchToHistoricalMap();
+                }
+            });
+        }
+
+        // 切换到现代地图
+        function switchToModernMap() {
+            isHistoricalMode = false;
+            map.getContainer().classList.remove('historical-map');
+        }
+
+        // 切换到明清古地图（使用CSS滤镜实现）
+        function switchToHistoricalMap() {
+            isHistoricalMode = true;
+            map.getContainer().classList.add('historical-map');
+        }
+
+        // 故事章节数据
+        const storyChapters = [
+            {
+                title: "第一章：俯瞰榕城，坊巷初现",
+                content: `
+                    <p>福州，这座有着2200多年历史的文化名城，自古便有"海滨邹鲁"的美誉。在城市的中心地带，保存着一片中国现存最完整的明清古建筑街区——三坊七巷。</p>
+                    <p>请跟随地图的视角，从高空俯瞰这片神奇的土地。你将看到一片青瓦白墙、错落有致的古建筑群，它就像一颗璀璨的明珠，镶嵌在现代都市的怀抱中。</p>
+                    <img src="https://tse3-mm.cn.bing.net/th/id/OIP-C.s6FRxsIqHbItEMU4K7fVKAHaE8?w=265&h=180&c=7&r=0&o=7&dpr=1.5&pid=1.7&rm=3" alt="福州三坊七巷全景" class="story-image">
+                    <p>点击"下一步"按钮，让我们一起走进这片千年坊巷，开启一段穿越时空的旅程。</p>
+                `,
+                view: { lat: 26.0865, lng: 119.2965, zoom: 10 },
+                markers: [],
+                autoSwitchLayer: "modern"
+            },
+            {
+                title: "第二章：走进三坊七巷",
+                content: `
+                    <p>三坊七巷始建于晋代，完善于唐代，鼎盛于明清，至今仍保留着唐宋时期的坊巷格局。它占地约38公顷，由三个坊、七条巷和一条中轴街组成。</p>
+                    <p>三个坊分别是衣锦坊、文儒坊和光禄坊；七条巷分别是杨桥巷、郎官巷、塔巷、黄巷、安民巷、宫巷和吉庇巷；中轴街就是著名的南后街。</p>
+                    <img src="https://p1.ssl.qhimg.com/t0119e1e7379c14e7e1.jpg" alt="三坊七巷古街" class="story-image">
+                    <p>现在地图已经放大到三坊七巷的全貌，黄色线条标注了街区的实际范围。接下来，让我们深入其中，探索那些隐藏在坊巷深处的故事。</p>
+                `,
+                view: { lat: 26.0845, lng: 119.2965, zoom: 14 },
+                markers: [],
+                autoSwitchLayer: "modern"
+            },
+            {
+                title: "第三章：穿越时空，回到明清",
+                content: `
+                    <p>现在，让我们切换到明清古地图，穿越回几百年前的福州城。在那个时代，三坊七巷是福州的名门望族和文人雅士聚居之地。</p>
+                    <p>这里的每一座宅院都有着悠久的历史，每一条巷弄都流传着动人的故事。从这里走出了林则徐、沈葆桢、严复、冰心等一大批对中国近现代史产生重要影响的人物。</p>
+                    <img src="https://img.d-arts.cn/grab_img/5abd675c25f721c5bb886c3ea1a6d2611673246385.png" alt="明清古建筑" class="story-image">
+                    <p>系统已自动为您切换到明清古地图模式。请点击地图上的彩色标记点，了解那些著名人物的故事。</p>
+                `,
+                view: { lat: 26.0845, lng: 119.2965, zoom: 15.5 },
+                markers: [
+                    {
+                        lat: 26.085355,
+                        lng: 119.295830,
+                        title: "林觉民·冰心故居",
+                        content: `
+                            <h3>林觉民·冰心故居</h3>
+                            <img src="https://youimg1.c-ctrip.com/target/100i0v000000jlgvd004B.jpg" alt="林觉民冰心故居" class="popup-image">
+                            <p>一座宅院，两位名人。这里曾是黄花岗七十二烈士之一林觉民的故居，他在这里写下了感人至深的《与妻书》。</p>
+                            <p>林觉民牺牲后，家人为避祸将宅院卖给了冰心的祖父，冰心十一二岁时曾在此居住。</p>
+                        `,
+                        type: "名人故居"
+                    },
+                    {
+                        lat: 26.085189,
+                        lng: 119.297237,
+                        title: "严复故居",
+                        content: `
+                            <h3>严复故居</h3>
+                            <img src="https://tr-osdcp.qunarzz.com/tr-osd-tr-space/img/ded7e7e16261e9fbd7408be817495efd.jpg_r_640x426x70_03d3d899.jpg" alt="严复故居" class="popup-image">
+                            <p>严复是中国近代著名的启蒙思想家、翻译家。他翻译的《天演论》提出"物竞天择，适者生存"的观点，对中国近代思想界产生了深远影响。</p>
+                            <p>这座故居位于郎官巷西段，是严复晚年落叶归根的地方。</p>
+                        `,
+                        type: "名人故居"
+                    },
+                    {
+                        lat: 26.083383,
+                        lng: 119.296582,
+                        title: "水榭戏台",
+                        content: `
+                            <h3>水榭戏台</h3>
+                            <img src="https://tr-osdcp.qunarzz.com/tr-osd-tr-mapi/img/27c42eb1542def7634cee62b77c341ee.jpg_r_720x480x95_c2ebabb6.jpg" alt="水榭戏台" class="popup-image">
+                            <p>水榭戏台位于衣锦坊东口北侧，是福州现存唯一的水上戏台。它建于明万历年间，清道光年间重建。</p>
+                            <p>戏台建在水池之上，利用水面回声增强音响效果，设计十分巧妙。</p>
+                        `,
+                        type: "历史遗迹"
+                    },
+                    {
+                        lat: 26.083688,
+                        lng: 119.297578,
+                        title: "小黄楼",
+                        content: `
+                            <h3>小黄楼</h3>
+                            <img src="https://tr-osdcp.qunarzz.com/tr-osd-tr-mapi/img/40f9482f7e962c6d044c9c272e3102e5.jpg_r_720x480x95_85c9fd8d.jpg" alt="小黄楼" class="popup-image">
+                            <p>小黄楼位于黄巷中段北侧，是三坊七巷中最精致的园林之一。它始建于唐代，现存建筑为清代所建。</p>
+                            <p>园内假山、鱼池、亭台楼阁一应俱全，体现了江南园林的独特韵味。</p>
+                        `,
+                        type: "传统园林"
+                    },
+                    {
+                        lat: 26.081818,
+                        lng: 119.298163,
+                        title: "沈葆桢故居",
+                        content: `
+                            <h3>沈葆桢故居</h3>
+                            <img src="https://image.fznews.com.cn/app/pic/2024-10/13/515015_aa2e97e8-2c3e-400e-9ab7-752c9abb0f05.jpg" alt="沈葆桢故居" class="popup-image">
+                            <p>沈葆桢是林则徐的女婿，也是中国近代海军的奠基人之一。他创办了福建船政学堂，培养了中国第一批海军人才。</p>
+                            <p>这座故居位于宫巷西段，是一座规模宏大的明代民居。</p>
+                        `,
+                        type: "名人故居"
+                    }
+                ],
+                autoSwitchLayer: "historical"
+            },
+            {
+                title: "第四章：坊巷新生，古今交融",
+                content: `
+                    <p>时光流转，岁月变迁。如今的三坊七巷已经成为福州的一张文化名片，吸引着来自世界各地的游客。</p>
+                    <p>在这里，你可以看到传统与现代的完美融合。古老的宅院被改造成了博物馆、展览馆、咖啡馆和特色商店，焕发出新的生机与活力。</p>
+                    <img src="https://imgs.699pic.com/images/700/825/119.jpg!list1x.v2" alt="三坊七巷夜景" class="story-image">
+                    <p>系统已自动切换回现代地图。你可以继续点击地图上的标记点，了解更多关于这片坊巷今天的故事。</p>
+                `,
+                view: { lat: 26.0845, lng: 119.2965, zoom: 15.5 },
+                markers: [
+                    {
+                        lat: 26.078369,
+                        lng: 119.297274,
+                        title: "林则徐纪念馆",
+                        content: `
+                            <h3>林则徐纪念馆</h3>
+                            <img src="https://ts1.tc.mm.bing.net/th/id/R-C.cc169e819dfde49c41a20e45295e5625?rik=w7LTgn8oQPf5wA&riu=http%3a%2f%2fyouimg1.c-ctrip.com%2ftarget%2ffd%2ftg%2fg2%2fM03%2fAA%2fE7%2fCghzf1UtDoqAGXnFAAEB3dFB0JY044.jpg&ehk=oul6E118eJRMQRfWwPkinbTGhtLudjOKD%2bMOSzKxuag%3d&risl=&pid=ImgRaw&r=0" alt="林则徐纪念馆" class="popup-image">
+                            <p>林则徐纪念馆是为了纪念民族英雄林则徐而建立的专题博物馆。馆内展示了林则徐的生平事迹和虎门销烟的历史场景。</p>
+                            <p>它是全国爱国主义教育示范基地，也是福州重要的文化旅游景点。</p>
+                        `,
+                        type: "名人故居"
+                    },
+                    {
+                        lat: 26.085484,
+                        lng: 119.296196,
+                        title: "南后街",
+                        content: `
+                            <h3>南后街</h3>
+                            <img src="https://tse3-mm.cn.bing.net/th/id/OIP-C.KmzZkrrcfPtBY8GYB0SVpwHaEK?w=305&h=180&c=7&r=0&o=7&dpr=1.5&pid=1.7&rm=3" alt="南后街" class="popup-image">
+                            <p>南后街是三坊七巷的中轴街，也是福州最著名的商业街之一。这里聚集了众多的老字号店铺和特色小吃店。</p>
+                            <p>你可以在这里品尝到福州的传统美食，如鱼丸、肉燕、锅边糊等，还可以购买到各种手工艺品和纪念品。</p>
+                        `,
+                        type: "历史遗迹"
+                    },
+                    {
+                        lat: 26.085355,
+                        lng: 119.295830,
+                        title: "林觉民·冰心故居",
+                        content: `
+                            <h3>林觉民·冰心故居</h3>
+                            <img src="https://youimg1.c-ctrip.com/target/100w0v000000jsomp71AE.jpg" alt="林觉民冰心故居" class="popup-image">
+                            <p>如今这里已成为爱国主义教育基地，常年举办林觉民生平事迹展和冰心文学展。</p>
+                            <p>每年都有无数游客来到这里，缅怀先烈，感受文学的魅力。</p>
+                        `,
+                        type: "名人故居"
+                    }
+                ],
+                autoSwitchLayer: "modern"
+            },
+            {
+                title: "第五章：千年文脉，薪火相传",
+                content: `
+                    <p>三坊七巷不仅是一片古建筑群，更是福州历史文化的缩影。它承载着福州人的记忆，也见证了中国近现代史的变迁。</p>
+                    <p>从这里走出的无数仁人志士，用他们的智慧和勇气，为国家和民族的发展做出了重要贡献。他们的精神，就像这千年坊巷一样，永远流传下去。</p>
+                    <img src="https://ts1.tc.mm.bing.net/th/id/OIP-C.esjuViqvJU5r82pUfq5TigAAAA?r=0&rs=1&pid=ImgDetMain&o=7&rm=3" alt="三坊七巷全景" class="story-image">
+                    <p>我们的时空之旅即将结束。希望通过这次旅程，你能对三坊七巷有更深入的了解，也能感受到中华传统文化的博大精深。</p>
+                    <p>感谢你的观看！</p>
+                `,
+                view: { lat: 26.0865, lng: 119.2965, zoom: 12 },
+                markers: [],
+                autoSwitchLayer: "modern"
+            }
+        ];
+
+        // 当前章节索引
+        let currentChapter = 0;
+        let currentMarkers = [];
+
+        // 更新故事内容
+        function updateStory() {
+            if (!mapLoaded) return;
+
+            const chapter = storyChapters[currentChapter];
+            document.getElementById('storyContent').innerHTML = `
+                <h3>${chapter.title}</h3>
+                ${chapter.content}
+            `;
+
+            // 更新进度条
+            const progress = ((currentChapter + 1) / storyChapters.length) * 100;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+
+            // 更新按钮状态
+            document.getElementById('prevBtn').disabled = currentChapter === 0;
+            document.getElementById('nextBtn').textContent = currentChapter === storyChapters.length - 1 ? "重新开始" : "下一步";
+
+            // 平滑过渡到新的地图视角
+            map.flyTo([chapter.view.lat, chapter.view.lng], chapter.view.zoom, {
+                duration: 2
+            });
+
+            // 清除之前的标记点
+            currentMarkers.forEach(marker => map.removeLayer(marker));
+            currentMarkers = [];
+
+            // 添加新的标记点
+            chapter.markers.forEach(markerData => {
+                const markerColor = markerData.type === "名人故居" ? "#8b4513" : 
+                                   markerData.type === "历史遗迹" ? "#d4af37" : "#2e8b57";
+                
+                // 更大更醒目的标记点
+                const customIcon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="width: 30px; height: 30px; background-color: ${markerColor}; border-radius: 50%; border: 4px solid white; box-shadow: 0 3px 10px rgba(0,0,0,0.4); transition: transform 0.2s ease;"></div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+
+                const marker = L.marker([markerData.lat, markerData.lng], { icon: customIcon })
+                    .addTo(map)
+                    .bindPopup(`<div class="popup-content">${markerData.content}</div>`, {
+                        maxWidth: 350,
+                        className: 'custom-popup'
+                    });
+
+                // 添加悬停效果
+                marker.on('mouseover', function() {
+                    this._icon.querySelector('div').style.transform = 'scale(1.2)';
+                });
+
+                marker.on('mouseout', function() {
+                    this._icon.querySelector('div').style.transform = 'scale(1)';
+                });
+
+                currentMarkers.push(marker);
+            });
+
+            // 自动切换图层
+            if (chapter.autoSwitchLayer === "historical" && !isHistoricalMode) {
+                document.getElementById('historicalLayer').checked = true;
+                switchToHistoricalMap();
+            } else if (chapter.autoSwitchLayer === "modern" && isHistoricalMode) {
+                document.getElementById('modernLayer').checked = true;
+                switchToModernMap();
+            }
+        }
+
+        // 下一步按钮点击事件
+        document.getElementById('nextBtn').addEventListener('click', function() {
+            if (currentChapter === storyChapters.length - 1) {
+                currentChapter = 0;
+            } else {
+                currentChapter++;
+            }
+            updateStory();
+        });
+
+        // 上一步按钮点击事件
+        document.getElementById('prevBtn').addEventListener('click', function() {
+            if (currentChapter > 0) {
+                currentChapter--;
+                updateStory();
+            }
+        });
+
+        // 开始加载地图
+        window.onload = function() {
+            initMap();
+        };
+    </script>
+</body>
+</html>
